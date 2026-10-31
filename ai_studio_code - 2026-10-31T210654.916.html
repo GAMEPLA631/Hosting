@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FLIP-Shoster // NEON MATRIX EDITION 2077</title>
+    <!-- Sci-Fi & Cyberpunk Fonty -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Paho MQTT CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+
+    <style>
+        :root {
+            --neon-pink: #ff0055;
+            --neon-purple: #9d00ff;
+            --neon-blue: #00f0ff;
+            --neon-yellow: #fcee0a;
+            --neon-green: #00ff66;
+            --dark-void: #06080d;
+            --dark-panel: #0b0f19;
+            --dark-card: #111726;
+            --border-glow: #00f0ff44;
+            --rainbow-grad: linear-gradient(135deg, #ff0055, #9d00ff, #00f0ff, #fcee0a);
+            --rainbow-grad-h: linear-gradient(90deg, #ff0055, #9d00ff, #00f0ff, #00ff66, #fcee0a, #ff0055);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Rajdhani', sans-serif;
+            letter-spacing: 0.5px;
+        }
+
+        body {
+            background-color: var(--dark-void);
+            color: #d1dcff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(255, 0, 85, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(0, 240, 255, 0.08) 0%, transparent 40%),
+                linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+        }
+
+        /* Dúhový bežiaci lúč na vrchu */
+        .rainbow-laser {
+            height: 3px;
+            width: 100%;
+            background: var(--rainbow-grad-h);
+            background-size: 400% 100%;
+            animation: rainbow-shift 6s linear infinite;
+        }
+
+        @keyframes rainbow-shift {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 400% 50%; }
+        }
+
+        /* Top HUD Header */
+        header {
+            background: rgba(11, 15, 25, 0.85);
+            backdrop-filter: blur(14px);
+            border-bottom: 1px solid var(--border-glow);
+            padding: 14px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .cyber-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+        }
+
+        .cyber-logo-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--rainbow-grad);
+            clip-path: polygon(25% 0%, 100% 0%, 75% 100%, 0% 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            color: #000;
+            text-shadow: 0 0 4px #fff;
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.6);
+        }
+
+        .cyber-logo-text {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.35rem;
+            font-weight: 900;
+            background: var(--rainbow-grad-h);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 15px rgba(0, 240, 255, 0.5);
+        }
+
+        .cyber-badge {
+            background: rgba(0, 240, 255, 0.1);
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            font-size: 0.72rem;
+            padding: 2px 8px;
+            border-radius: 2px;
+            text-transform: uppercase;
+            font-family: 'JetBrains Mono', monospace;
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+        }
+
+        /* Telemetrický Sub-Bar */
+        .hud-status-bar {
+            background: rgba(6, 8, 13, 0.9);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+            padding: 8px 28px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pulsing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--neon-yellow);
+            box-shadow: 0 0 10px var(--neon-yellow);
+        }
+
+        .pulsing-dot.online {
+            background-color: var(--neon-green);
+            box-shadow: 0 0 12px var(--neon-green);
+        }
+
+        /* Cyber Tlačidlá */
+        .btn-cyber {
+            background: rgba(17, 23, 38, 0.9);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 8px 18px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            position: relative;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        }
+
+        .btn-cyber:hover {
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 18px rgba(0, 240, 255, 0.5);
+            color: var(--neon-blue);
+            transform: translateY(-2px);
+        }
+
+        .btn-rainbow {
+            background: var(--rainbow-grad);
+            color: #000;
+            font-weight: 900;
+            border: none;
+            box-shadow: 0 0 20px rgba(255, 0, 85, 0.4);
+        }
+
+        .btn-rainbow:hover {
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.8);
+            color: #000;
+            filter: brightness(1.15);
+        }
+
+        /* Hlavný Kontajner */
+        .main-hud {
+            max-width: 1300px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 24px;
+            flex: 1;
+        }
+
+        /* Cyberpunk Navigačné Záložky */
+        .cyber-tabs {
+            display: flex;
+            gap: 12px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.08);
+            margin-bottom: 30px;
+            overflow-x: auto;
+        }
+
+        .cyber-tab {
+            padding: 12px 20px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: #7d8b9e;
+            cursor: pointer;
+            transition: 0.25s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 3px solid transparent;
+            text-transform: uppercase;
+        }
+
+        .cyber-tab.active {
+            color: var(--neon-yellow);
+            border-bottom-color: var(--neon-pink);
+            text-shadow: 0 0 10px rgba(252, 238, 10, 0.5);
+        }
+
+        .counter-pill {
+            background: rgba(255, 0, 85, 0.2);
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            border-radius: 4px;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Panely a Karty */
+        .cyber-panel {
+            background: var(--dark-panel);
+            border: 1px solid var(--border-glow);
+            border-radius: 4px;
+            padding: 24px;
+            position: relative;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+        }
+
+        .cyber-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 25px;
+            height: 25px;
+            border-top: 3px solid var(--neon-pink);
+            border-left: 3px solid var(--neon-pink);
+        }
+
+        .cyber-panel::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 25px;
+            height: 25px;
+            border-bottom: 3px solid var(--neon-blue);
+            border-right: 3px solid var(--neon-blue);
+        }
+
+        .grid-sites {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+            gap: 20px;
+        }
+
+        .site-card {
+            background: var(--dark-card);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 20px;
+            transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+            clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 15px 100%, 0 calc(100% - 15px));
+        }
+
+        .site-card:hover {
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 25px rgba(0, 240, 255, 0.25);
+            transform: translateY(-4px);
+        }
+
+        .site-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--rainbow-grad-h);
+            opacity: 0;
+            transition: 0.3s;
+        }
+
+        .site-card:hover::after {
+            opacity: 1;
+        }
+
+        .site-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.15rem;
+            color: var(--neon-blue);
+            text-decoration: none;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .version-tag {
+            background: rgba(252, 238, 10, 0.1);
+            border: 1px solid var(--neon-yellow);
+            color: var(--neon-yellow);
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Formuláre a Kódový Editor */
+        .cyber-input, .cyber-textarea {
+            width: 100%;
+            background: #060911;
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            color: #00ffaa;
+            padding: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            margin-bottom: 16px;
+            outline: none;
+            transition: 0.2s;
+        }
+
+        .cyber-input:focus, .cyber-textarea:focus {
+            border-color: var(--neon-pink);
+            box-shadow: 0 0 15px rgba(255, 0, 85, 0.4);
+        }
+
+        .cyber-textarea {
+            min-height: 300px;
+            resize: vertical;
+        }
+
+        /* Live Preview HUD Modal */
+        #live-sandbox {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+        }
+
+        .sandbox-topbar {
+            background: #0b0f19;
+            padding: 12px 20px;
+            border-bottom: 2px solid var(--neon-pink);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        #site-frame {
+            flex: 1;
+            border: none;
+            background: #fff;
+        }
+
+        /* Modálne okná */
+        .cyber-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 500;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="rainbow-laser"></div>
+
+    <!-- Horný Navigačný Panel -->
+    <header>
+        <div class="cyber-logo" onclick="switchTab('explore')">
+            <div class="cyber-logo-icon">FS</div>
+            <div>
+                <span class="cyber-logo-text">FLIP-Shoster</span>
+                <span class="cyber-badge">NEON-V3.0 CLOUD</span>
+            </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px;">
+            <div id="auth-status-container" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
+                <span style="color: #6272a4;">ANONYMNÝ NÁVŠTEVNÍK</span>
+            </div>
+            <button class="btn-cyber" id="btn-login-modal" onclick="openAuthModal()">Identifikácia</button>
+            <button class="btn-cyber btn-rainbow" onclick="switchTab('deploy')">🚀 Nový Host</button>
+        </div>
+    </header>
+
+    <!-- Telemetria MQTT Servera -->
+    <div class="hud-status-bar">
+        <div class="status-indicator">
+            <span class="pulsing-dot" id="net-dot"></span>
+            <span id="net-status-text">LADENIE KVÁNTOVÉHO WSS SPOJENIA...</span>
+        </div>
+        <div>EMQX CLOUD BROKER: <span style="color: var(--neon-blue);">broker.emqx.io:8084/mqtt</span></div>
+    </div>
+
+    <!-- Hlavné Cyber Rozhranie -->
+    <div class="main-hud">
+        
+        <!-- Navigačné Záložky -->
+        <div class="cyber-tabs">
+            <div class="cyber-tab active" id="tab-explore" onclick="switchTab('explore')">
+                🌐 MATRIX EXPEDÍCIA <span class="counter-pill" id="sites-counter">0</span>
+            </div>
+            <div class="cyber-tab" id="tab-my" onclick="switchTab('my')">
+                📦 MOJE PROJEKTY
+            </div>
+            <div class="cyber-tab" id="tab-deploy" onclick="switchTab('deploy')">
+                ⚡ NASADIŤ KÓD
+            </div>
+            <div class="cyber-tab" id="tab-update" onclick="switchTab('update')">
+                🔄 UPDATE & VERSION STUDIO
+            </div>
+            <div class="cyber-tab" id="tab-gateway" onclick="switchTab('gateway')">
+                🛡️ MASTER API GATEWAY
+            </div>
+        </div>
+
+        <!-- 1. PREHĽADÁVAČ WEBOV -->
+        <div id="view-explore" class="tab-view">
+            <div class="grid-sites" id="sites-container"></div>
+        </div>
+
+        <!-- 2. MOJE PROJEKTY -->
+        <div id="view-my" class="tab-view" style="display: none;">
+            <div class="grid-sites" id="my-sites-container"></div>
+        </div>
+
+        <!-- 3. NASADENIE NOVÉHO WEBU -->
+        <div id="view-deploy" class="tab-view" style="display: none;">
+            <div class="cyber-panel" style="max-width: 800px; margin: 0 auto;">
+                <h2 style="font-family: 'Orbitron'; color: var(--neon-pink); margin-bottom: 12px;">INICIALIZOVAŤ NOVÝ CLOUD REPOZITÁR</h2>
+                <p style="font-size: 0.9rem; color: #8892b0; margin-bottom: 20px;">
+                    Každá stránka beží v izolovanom bezpečnom sandboxe. Môžeš použiť čisté HTML, CSS alebo JavaScript.
+                </p>
+
+                <label style="font-size: 0.8rem; color: var(--neon-blue);">UNIKÁTNY REPO NÁZOV (SLUG):</label>
+                <input type="text" id="repo-slug" class="cyber-input" placeholder="napr. neon-game-2077">
+
+                <label style="font-size: 0.8rem; color: var(--neon-blue);">POPIS SYSTÉMU:</label>
+                <input type="text" id="repo-desc" class="cyber-input" placeholder="Kybernetická aplikácia napojená na AI Gateway...">
+
+                <label style="font-size: 0.8rem; color: var(--neon-blue);">ZDROJOVÝ KÓD (HTML/JS/CSS):</label>
+                <textarea id="repo-code" class="cyber-textarea" placeholder="<!DOCTYPE html>
+<html>
+<head>
+  <style>body{background:#0b0f19;color:#00f0ff;text-align:center;padding-top:100px;font-family:sans-serif;}</style>
+</head>
+<body>
+  <h1>Cyber-Site beží na FLIP-Shoster!</h1>
+  <button onclick='callSharedAI()'>Spustiť verejné AI bez zadania API kľúča</button>
+  <p id='output'></p>
+
+  <script>
+    function callSharedAI() {
+      // Verejné volanie cez materskú bránu FLIP-Shoster!
+      window.parent.postMessage({
+        type: 'FLIP_SERVICE_CALL',
+        endpoint: 'ai',
+        prompt: 'Napíš jedno cyberpunkové motto'
+      }, '*');
+    }
+
+    window.addEventListener('message', (e) => {
+      if(e.data.type === 'FLIP_SERVICE_RESPONSE') {
+        document.getElementById('output').innerText = e.data.result;
+      }
+    });
+  </script>
+</body>
+</html>"></textarea>
+
+                <button class="btn-cyber btn-rainbow" style="width: 100%; padding: 14px;" onclick="deployProject()">
+                    🚀 ZVEREJNIŤ V CLOUDE & VYGENEROVAŤ VEREJNÝ ODKAZ
+                </button>
+            </div>
+        </div>
+
+        <!-- 4. LIVE UPDATE STUDIO -->
+        <div id="view-update" class="tab-view" style="display: none;">
+            <div class="cyber-panel" style="max-width: 800px; margin: 0 auto;">
+                <h2 style="font-family: 'Orbitron'; color: var(--neon-yellow); margin-bottom: 12px;">UPDATE & CODE REVISION HUB</h2>
+                <p style="font-size: 0.9rem; color: #8892b0; margin-bottom: 20px;">
+                    Vyber svoj web, modifikuj kód, zvýš verziu a vydaj okamžitý live update pre všetkých návštevníkov.
+                </p>
+
+                <label style="font-size: 0.8rem; color: var(--neon-yellow);">VYBER REPOZITÁR NA AKTUALIZÁCIU:</label>
+                <select id="update-selector" class="cyber-input" onchange="loadSiteForUpdate()" style="background:#060911;">
+                    <option value="">-- Vyber projekt --</option>
+                </select>
+
+                <div id="update-form-fields" style="display: none;">
+                    <div style="display: flex; gap: 12px;">
+                        <div style="flex: 1;">
+                            <label style="font-size: 0.8rem; color: var(--neon-yellow);">VERZIA (TAG):</label>
+                            <input type="text" id="update-version" class="cyber-input" value="v1.1.0">
+                        </div>
+                        <div style="flex: 2;">
+                            <label style="font-size: 0.8rem; color: var(--neon-yellow);">SPRÁVA AKTUALIZÁCIE (CHANGELOG):</label>
+                            <input type="text" id="update-msg" class="cyber-input" placeholder="napr. Oprava bugov & pridaný nový dizajn">
+                        </div>
+                    </div>
+
+                    <label style="font-size: 0.8rem; color: var(--neon-yellow);">UPRAVIŤ KÓD:</label>
+                    <textarea id="update-code" class="cyber-textarea"></textarea>
+
+                    <button class="btn-cyber btn-rainbow" style="width: 100%; padding: 14px;" onclick="saveProjectUpdate()">
+                        🔄 VYPUSŤ LIVE UPDATE DO CLOUDU
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. MASTER API GATEWAY -->
+        <div id="view-gateway" class="tab-view" style="display: none;">
+            <div class="cyber-panel" style="max-width: 800px; margin: 0 auto;">
+                <h2 style="font-family: 'Orbitron'; color: var(--neon-green); margin-bottom: 8px;">BEZPEČNÁ VEREJNÁ API BRÁNA</h2>
+                <p style="font-size: 0.85rem; color: #8892b0; margin-bottom: 20px;">
+                    Sem zadávaš svoje API kľúče (napr. OpenAI, OpenRouter, Weather, Custom Webhooky). 
+                    <strong style="color: var(--neon-yellow);">Tieto kľúče neuvidí žiaden návštevník webu!</strong>
+                    Weby hostované na tvojom FLIP-Shosteri môžu volať túto bránu cez <code>postMessage</code> a platforma spraví bezpečný dotaz s tvojím kľúčom.
+                </p>
+
+                <label style="font-size: 0.8rem; color: var(--neon-green);">AI SERVICE API KĽÚČ (OpenAI / OpenRouter / Groq):</label>
+                <input type="password" id="gateway-key-ai" class="cyber-input" placeholder="sk-or-v1-xxxxxxxxxxxxxxxxx">
+
+                <label style="font-size: 0.8rem; color: var(--neon-green);">VLASTNÁ API PROXY URL / WEBHOOK:</label>
+                <input type="text" id="gateway-endpoint-custom" class="cyber-input" placeholder="https://api.openai.com/v1/chat/completions">
+
+                <button class="btn-cyber" style="width: 100%; border-color: var(--neon-green); color: var(--neon-green);" onclick="saveGatewayKeys()">
+                    💾 ULOŽIŤ & AKTUALIZOVAŤ MASTER BRÁNU
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Celobrazovkový Live Sandbox -->
+    <div id="live-sandbox">
+        <div class="sandbox-topbar">
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <span class="cyber-badge" id="preview-badge">LIVE POD</span>
+                <span id="preview-title" style="font-family: 'Orbitron'; color: #fff;"></span>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-cyber" onclick="copyCurrentLink()">📋 Skopírovať Verejnú URL</button>
+                <button class="btn-cyber btn-rainbow" onclick="closeLiveSandbox()">✕ Zatvoriť Náhľad</button>
+            </div>
+        </div>
+        <iframe id="site-frame" sandbox="allow-scripts allow-forms allow-modals"></iframe>
+    </div>
+
+    <!-- Auth Modál -->
+    <div class="cyber-modal" id="modal-auth">
+        <div class="cyber-panel" style="max-width: 420px; width: 90%;">
+            <h2 style="font-family: 'Orbitron'; color: var(--neon-pink); margin-bottom: 14px;">CYBER-ID AUTH</h2>
+            <label style="font-size: 0.8rem; color: #8892b0;">CYBER IDENTITY (USER):</label>
+            <input type="text" id="auth-nick" class="cyber-input">
+            <label style="font-size: 0.8rem; color: #8892b0;">PASSCODE:</label>
+            <input type="password" id="auth-pass" class="cyber-input">
+            
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button class="btn-cyber btn-rainbow" style="flex: 1;" onclick="processAuth('login')">Prihlásiť</button>
+                <button class="btn-cyber" style="flex: 1;" onclick="processAuth('register')">Registrovať</button>
+            </div>
+            <button class="btn-cyber" style="width: 100%; margin-top: 8px;" onclick="closeAuthModal()">Zrušiť</button>
+        </div>
+    </div>
+
+    <!-- JavaScript Jadro & MQTT Backend -->
+    <script>
+        // EMQX CLOUD WSS ARCHITEKTÚRA
+        const BROKER_URL  = "broker.emqx.io";
+        const BROKER_PORT = 8084;
+        const BROKER_PATH = "/mqtt";
+
+        const TOPIC_CATALOG = "dankermax/v1/vault_catalog";
+        const TOPIC_USERS   = "dankermax/v1/users_registry";
+        const TOPIC_REPORTS = "dankermax/v1/reports_queue";
+
+        // Dáta v pamäti a lokálna záloha
+        let globalCatalog = JSON.parse(localStorage.getItem("flip_catalog") || "[]");
+        let globalUsers   = JSON.parse(localStorage.getItem("flip_users") || "[]");
+        let currentUser   = JSON.parse(localStorage.getItem("flip_user") || "null");
+        let apiGateway    = JSON.parse(localStorage.getItem("flip_gateway") || "{}");
+
+        let mqttClient = null;
+
+        // 1. Spojenie s MQTT Cloudom
+        function initMQTT() {
+            const clientUID = "CYBER_" + Math.random().toString(16).substr(2, 8);
+            mqttClient = new Paho.MQTT.Client(BROKER_URL, BROKER_PORT, BROKER_PATH, clientUID);
+
+            mqttClient.onConnectionLost = (resp) => {
+                setNetStatus(false, "SPOJENIE PRERUŠENÉ. POKUS O RECONNECT...");
+                setTimeout(initMQTT, 5000);
+            };
+
+            mqttClient.onMessageArrived = (msg) => {
+                try {
+                    const data = JSON.parse(msg.payloadString);
+                    if (msg.destinationName === TOPIC_CATALOG) {
+                        globalCatalog = data;
+                        localStorage.setItem("flip_catalog", JSON.stringify(globalCatalog));
+                        renderCatalog();
+                        checkAutoPreview();
+                    } else if (msg.destinationName === TOPIC_USERS) {
+                        globalUsers = data;
+                        localStorage.setItem("flip_users", JSON.stringify(globalUsers));
+                    }
+                } catch(e) {
+                    console.error("Chyba spracovania správy:", e);
+                }
+            };
+
+            const opts = {
+                useSSL: true,
+                timeout: 5,
+                keepAliveInterval: 30,
+                onSuccess: () => {
+                    setNetStatus(true, "EMQX WSS CLOUD ONLINE // MATRIX READY");
+                    mqttClient.subscribe(TOPIC_CATALOG);
+                    mqttClient.subscribe(TOPIC_USERS);
+                    mqttClient.subscribe(TOPIC_REPORTS);
+                },
+                onFailure: (err) => {
+                    setNetStatus(false, "EMQX BROKER OFFLINE: " + err.errorMessage);
+                }
+            };
+
+            mqttClient.connect(opts);
+        }
+
+        function setNetStatus(isOnline, text) {
+            const dot = document.getElementById("net-dot");
+            const label = document.getElementById("net-status-text");
+            if (isOnline) {
+                dot.classList.add("online");
+            } else {
+                dot.classList.remove("online");
+            }
+            label.innerText = text;
+        }
+
+        function sendMqttRetained(topic, payload) {
+            if (!mqttClient || !mqttClient.isConnected()) {
+                alert("Nie si pripojený k MQTT sieti!");
+                return;
+            }
+            const msg = new Paho.MQTT.Message(JSON.stringify(payload));
+            msg.destinationName = topic;
+            msg.retained = true;
+            msg.qos = 1;
+            mqttClient.send(msg);
+        }
+
+        // 2. Bezpečná API Gateway & PostMessage Proxy
+        window.addEventListener("message", async (event) => {
+            if (!event.data || event.data.type !== "FLIP_SERVICE_CALL") return;
+
+            const { endpoint, prompt } = event.data;
+            const iframeWindow = document.getElementById("site-frame").contentWindow;
+
+            console.log("⚡ Požiadavka z hostovaného webu na API bránu:", endpoint);
+
+            if (!apiGateway.apiKey) {
+                iframeWindow.postMessage({
+                    type: "FLIP_SERVICE_RESPONSE",
+                    result: "[CHYBA MASTER BRÁNY]: Administrátor zatiaľ nenastavil API kľúč v 'Master API Gateway' záložke."
+                }, "*");
+                return;
+            }
+
+            // Volanie OpenAI / Groq / OpenRouter so skrytým API kľúčom
+            try {
+                const targetUrl = apiGateway.customUrl || "https://api.openai.com/v1/chat/completions";
+                const response = await fetch(targetUrl, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiGateway.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: "gpt-3.5-turbo",
+                        messages: [{ role: "user", content: prompt || "Ahoj" }],
+                        max_tokens: 150
+                    })
+                });
+
+                const json = await response.json();
+                const aiReply = json.choices ? json.choices[0].message.content : JSON.stringify(json);
+
+                // Odoslanie výsledku naspäť do iframe bez prezradenia tokenu!
+                iframeWindow.postMessage({
+                    type: "FLIP_SERVICE_RESPONSE",
+                    result: aiReply
+                }, "*");
+            } catch (err) {
+                iframeWindow.postMessage({
+                    type: "FLIP_SERVICE_RESPONSE",
+                    result: "[CHYBA VOLANIA]: " + err.message
+                }, "*");
+            }
+        });
+
+        function saveGatewayKeys() {
+            const key = document.getElementById("gateway-key-ai").value.trim();
+            const url = document.getElementById("gateway-endpoint-custom").value.trim();
+
+            apiGateway = { apiKey: key, customUrl: url };
+            localStorage.setItem("flip_gateway", JSON.stringify(apiGateway));
+            alert("🔒 Master API Kľúč úspešne uložený. Teraz môžu všetky weby volať služby bez zadania kľúča!");
+        }
+
+        // 3. Nasadenie a Aktualizácie Webov (Update Studio)
+        function deployProject() {
+            if (!currentUser) {
+                alert("Pre nasadenie webu sa najprv identifikuj (prihlás).");
+                openAuthModal();
+                return;
+            }
+
+            const slug = document.getElementById("repo-slug").value.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-');
+            const desc = document.getElementById("repo-desc").value.trim();
+            const code = document.getElementById("repo-code").value;
+
+            if (!slug || !code) {
+                alert("Zadaj názov webu a zdrojový kód!");
+                return;
+            }
+
+            const newSite = {
+                id: "pod_" + Date.now(),
+                slug: slug,
+                author: currentUser.username,
+                desc: desc || "Cyberpunk aplikácia",
+                code: code,
+                version: "v1.0.0",
+                changelog: "Počiatočné nasadenie v cloude",
+                timestamp: Date.now()
+            };
+
+            globalCatalog.unshift(newSite);
+            sendMqttRetained(TOPIC_CATALOG, globalCatalog);
+
+            alert("✅ Web úspešne spustený v sieti Matrix!");
+            document.getElementById("repo-slug").value = "";
+            document.getElementById("repo-desc").value = "";
+            switchTab("explore");
+        }
+
+        function loadSiteForUpdate() {
+            const siteId = document.getElementById("update-selector").value;
+            const formFields = document.getElementById("update-form-fields");
+            if (!siteId) {
+                formFields.style.display = "none";
+                return;
+            }
+
+            const site = globalCatalog.find(s => s.id === siteId);
+            if (site) {
+                document.getElementById("update-code").value = site.code;
+                document.getElementById("update-version").value = bumpVersion(site.version || "v1.0.0");
+                document.getElementById("update-msg").value = "";
+                formFields.style.display = "block";
+            }
+        }
+
+        function saveProjectUpdate() {
+            const siteId = document.getElementById("update-selector").value;
+            const site = globalCatalog.find(s => s.id === siteId);
+            if (!site) return;
+
+            site.code = document.getElementById("update-code").value;
+            site.version = document.getElementById("update-version").value.trim() || "v1.1.0";
+            site.changelog = document.getElementById("update-msg").value.trim() || "Aktualizácia kódu";
+            site.timestamp = Date.now();
+
+            sendMqttRetained(TOPIC_CATALOG, globalCatalog);
+            alert("🚀 Live Update úspešne vypustený do EMQX Cloudu pre všetkých!");
+            switchTab("explore");
+        }
+
+        function bumpVersion(ver) {
+            const parts = ver.replace("v", "").split(".").map(Number);
+            if (parts.length === 3) parts[2]++;
+            return "v" + parts.join(".");
+        }
+
+        // 4. Vykresľovanie Webov a Náhľad
+        function renderCatalog() {
+            const container = document.getElementById("sites-container");
+            const myContainer = document.getElementById("my-sites-container");
+            const updateSelector = document.getElementById("update-selector");
+
+            document.getElementById("sites-counter").innerText = globalCatalog.length;
+            container.innerHTML = "";
+            myContainer.innerHTML = "";
+
+            updateSelector.innerHTML = '<option value="">-- Vyber projekt --</option>';
+
+            globalCatalog.forEach(site => {
+                const liveUrl = `${window.location.origin}${window.location.pathname}?site=${site.author}/${site.slug}`;
+                const card = document.createElement("div");
+                card.className = "site-card";
+                card.innerHTML = `
+                    <div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                            <span class="version-tag">${site.version || 'v1.0.0'}</span>
+                            <span style="font-size:0.75rem; color:#6272a4;">${new Date(site.timestamp).toLocaleDateString()}</span>
+                        </div>
+                        <a href="javascript:void(0)" class="site-title" onclick="launchSandbox('${site.id}')">
+                            ${site.author} / ${site.slug}
+                        </a>
+                        <p style="font-size:0.85rem; color:#8892b0; margin-bottom: 16px;">${escapeHtml(site.desc)}</p>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px;">
+                        <button class="btn-cyber" style="padding:4px 10px; font-size:0.75rem;" onclick="copyLink('${liveUrl}')">Kopírovať Link</button>
+                        <button class="btn-cyber btn-rainbow" style="padding:4px 10px; font-size:0.75rem;" onclick="launchSandbox('${site.id}')">Spustiť Web</button>
+                    </div>
+                `;
+
+                container.appendChild(card);
+
+                if (currentUser && site.author === currentUser.username) {
+                    myContainer.appendChild(card.cloneNode(true));
+
+                    const opt = document.createElement("option");
+                    opt.value = site.id;
+                    opt.innerText = `${site.slug} (${site.version || 'v1.0.0'})`;
+                    updateSelector.appendChild(opt);
+                }
+            });
+        }
+
+        function launchSandbox(siteId) {
+            const site = globalCatalog.find(s => s.id === siteId);
+            if (!site) return;
+
+            document.getElementById("preview-title").innerText = `${site.author} / ${site.slug} [${site.version || 'v1.0.0'}]`;
+            const frame = document.getElementById("site-frame");
+            frame.srcdoc = site.code;
+            document.getElementById("live-sandbox").style.display = "flex";
+
+            window.history.pushState({}, "", `?site=${site.author}/${site.slug}`);
+        }
+
+        function closeLiveSandbox() {
+            document.getElementById("live-sandbox").style.display = "none";
+            document.getElementById("site-frame").srcdoc = "";
+            window.history.pushState({}, "", window.location.pathname);
+        }
+
+        function checkAutoPreview() {
+            const params = new URLSearchParams(window.location.search);
+            const siteQuery = params.get("site");
+            if (siteQuery) {
+                const [author, slug] = siteQuery.split("/");
+                const site = globalCatalog.find(s => s.author.toLowerCase() === author.toLowerCase() && s.slug.toLowerCase() === slug.toLowerCase());
+                if (site) launchSandbox(site.id);
+            }
+        }
+
+        // 5. Auth a Rozhranie
+        function processAuth(type) {
+            const nick = document.getElementById("auth-nick").value.trim();
+            const pass = document.getElementById("auth-pass").value.trim();
+
+            if (!nick || !pass) {
+                alert("Zadaj nick aj heslo.");
+                return;
+            }
+
+            if (type === "register") {
+                const exists = globalUsers.find(u => u.username.toLowerCase() === nick.toLowerCase());
+                if (exists) {
+                    alert("Tento nick už v matrixe existuje.");
+                    return;
+                }
+                const user = { username: nick, password: pass, created: Date.now() };
+                globalUsers.push(user);
+                sendMqttRetained(TOPIC_USERS, globalUsers);
+                currentUser = user;
+                localStorage.setItem("flip_user", JSON.stringify(currentUser));
+            } else {
+                const user = globalUsers.find(u => u.username.toLowerCase() === nick.toLowerCase() && u.password === pass);
+                if (!user) {
+                    alert("Nesprávna identita alebo heslo.");
+                    return;
+                }
+                currentUser = user;
+                localStorage.setItem("flip_user", JSON.stringify(currentUser));
+            }
+
+            updateAuthUI();
+            closeAuthModal();
+        }
+
+        function updateAuthUI() {
+            const container = document.getElementById("auth-status-container");
+            const btn = document.getElementById("btn-login-modal");
+
+            if (currentUser) {
+                container.innerHTML = `<span style="color:var(--neon-green)">● ONLINE:</span> <strong style="color:var(--neon-blue)">@${currentUser.username}</strong>`;
+                btn.innerText = "Odpojiť";
+                btn.onclick = () => {
+                    currentUser = null;
+                    localStorage.removeItem("flip_user");
+                    updateAuthUI();
+                };
+            } else {
+                container.innerHTML = `<span style="color: #6272a4;">ANONYMNÝ NÁVŠTEVNÍK</span>`;
+                btn.innerText = "Identifikácia";
+                btn.onclick = openAuthModal;
+            }
+            renderCatalog();
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll(".cyber-tab").forEach(t => t.classList.remove("active"));
+            document.querySelectorAll(".tab-view").forEach(v => v.style.display = "none");
+
+            document.getElementById("tab-" + tabId).classList.add("active");
+            document.getElementById("view-" + tabId).style.display = "block";
+        }
+
+        function openAuthModal() { document.getElementById("modal-auth").style.display = "flex"; }
+        function closeAuthModal() { document.getElementById("modal-auth").style.display = "none"; }
+
+        function copyLink(url) {
+            navigator.clipboard.writeText(url).then(() => {
+                alert("🌐 Verejná URL adresa skopírovaná:\n" + url);
+            });
+        }
+
+        function copyCurrentLink() { copyLink(window.location.href); }
+
+        function escapeHtml(text) {
+            const d = document.createElement("div");
+            d.textContent = text;
+            return d.innerHTML;
+        }
+
+        // Štart systému
+        window.addEventListener("DOMContentLoaded", () => {
+            updateAuthUI();
+            renderCatalog();
+            initMQTT();
+
+            if (apiGateway.apiKey) {
+                document.getElementById("gateway-key-ai").value = apiGateway.apiKey;
+            }
+            if (apiGateway.customUrl) {
+                document.getElementById("gateway-endpoint-custom").value = apiGateway.customUrl;
+            }
+        });
+    </script>
+</body>
+</html>
